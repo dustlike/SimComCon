@@ -14,8 +14,7 @@ void SIM5360E_ATCEH::ATCEH_ReadGPSInfo::initialize(uint32_t& timeLimit, int& max
 	timeLimit = 60000;
 	maxTry = 32767;
 	
-	latitude[0] = '\0';
-	longitude[0] = '\0';
+	location_string[0] = '\0';
 }
 
 
@@ -46,28 +45,38 @@ void SIM5360E_ATCEH::ATCEH_ReadGPSInfo::parseResponse(GenericATLexer::GATLToken 
 		ew = strtok(nullptr, ",");
 		if (!ew || *ew == '\0') break;
 		
-		latitude[0] = *ns;
-		strncpy(latitude + 1, la, 11);
-		
-		longitude[0] = *ew;
-		strncpy(longitude + 1, lo, 12);
+		//組成格式 [N/S][Latitude],[E/W][Longitude]
+		//例如"N24.141847,E120.639634"
+		{
+			char *p = location_string;
+			*p++ = *ns;
+			
+			for (int i=0; i<11 && *la; i++)
+			{
+				*p++ = *la++;
+			}
+			
+			*p++ = ',';
+			*p++ = *ew;
+			
+			for (int i=0; i<12 && *lo; i++)
+			{
+				//(有待驗證)照手冊的描述，經度小於100時「貌似」會產生空白字元，過濾掉.
+				if (*lo != ' ') *p++ = *lo;
+				lo++;
+			}
+			
+			*p = '\0';
+		}
 		
 		control = GenericATCmder::KEEPON;
 		break;
 		
 		case RT_OK:
-		if (latitude[0] && longitude[0])
+		if (location_string[0])
 		{
 			control = GenericATCmder::DONE;
 		}
-		else
-		{
-			control = GenericATCmder::RESEND;
-		}
-		break;
-		
-		case RT_ERROR:
-		control = GenericATCmder::RESEND;
 		break;
 	}
 }

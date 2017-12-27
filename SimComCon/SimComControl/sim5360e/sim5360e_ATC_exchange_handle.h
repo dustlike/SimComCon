@@ -355,12 +355,16 @@ public:
 	
 	struct ATCEH_ReadGPSInfo : public ATCExchangeHandler
 	{
+		ATCEH_ReadGPSInfo()
+		{
+			location_string[0] = '\0';
+		}
+		
 		virtual void initialize(uint32_t& timeLimit, int& maxTry);
 		virtual void sendCommand(Stream *uart);
 		virtual void parseResponse(GenericATLexer::GATLToken token, GenericATLexer *lexer, GenericATCmder::GATC_CTRL& control, SimpleTimer& retryTimer);
 		
-		char latitude[13];
-		char longitude[14];
+		char location_string[27];
 		
 	} ReadGPSInfo;
 	
