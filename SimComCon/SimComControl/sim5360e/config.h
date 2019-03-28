@@ -6,21 +6,16 @@
  */ 
 
 
-#ifndef SIMCOMCON_CONFIG_H_
-#define SIMCOMCON_CONFIG_H_
+#pragma once
 
 
 #define SCC_TOKEN_MONITOR
 
 
 #ifdef SCC_TOKEN_MONITOR
-#  define monitorSerial Serial1
 #  define ECHO_MODEM_INPUT
 #endif
 
 
-#define GATC_RECV_BUFFER_MAX 127
+#define GATL_RESPONSE_BUFFER_MAX 15
 
-
-
-#endif /* SIMCOMCON_CONFIG_H_ */

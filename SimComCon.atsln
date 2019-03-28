@@ -5,22 +5,22 @@ VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{E66E83B9-2572-4076-B26E-6BE79FF3018A}") = "SimComControl", "SimComCon\SimComControl\SimComControl.cppproj", "{DCE6C7E3-EE26-4D79-826B-08594B9AD897}"
 EndProject
-Project("{E66E83B9-2572-4076-B26E-6BE79FF3018A}") = "ArduinoCore", "SimComCon\ArduinoCore\ArduinoCore.cppproj", "{6E25AAE8-9778-430B-916B-F5DF7F66E548}"
+Project("{E66E83B9-2572-4076-B26E-6BE79FF3018A}") = "ArduinoCore", "SimComCon\ArduinoCore\ArduinoCore.cppproj", "{22ACFD70-618A-40DE-B7C2-C0D19E9C42D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|AVR = Debug|AVR
-		Release|AVR = Release|AVR
+		Debug|ARM = Debug|ARM
+		Release|ARM = Release|ARM
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Debug|AVR.ActiveCfg = Debug|AVR
-		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Debug|AVR.Build.0 = Debug|AVR
-		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Release|AVR.ActiveCfg = Release|AVR
-		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Release|AVR.Build.0 = Release|AVR
-		{6E25AAE8-9778-430B-916B-F5DF7F66E548}.Debug|AVR.ActiveCfg = Debug|AVR
-		{6E25AAE8-9778-430B-916B-F5DF7F66E548}.Debug|AVR.Build.0 = Debug|AVR
-		{6E25AAE8-9778-430B-916B-F5DF7F66E548}.Release|AVR.ActiveCfg = Release|AVR
-		{6E25AAE8-9778-430B-916B-F5DF7F66E548}.Release|AVR.Build.0 = Release|AVR
+		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Debug|ARM.ActiveCfg = Debug|ARM
+		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Debug|ARM.Build.0 = Debug|ARM
+		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Release|ARM.ActiveCfg = Release|ARM
+		{DCE6C7E3-EE26-4D79-826B-08594B9AD897}.Release|ARM.Build.0 = Release|ARM
+		{22ACFD70-618A-40DE-B7C2-C0D19E9C42D3}.Debug|ARM.ActiveCfg = Debug|ARM
+		{22ACFD70-618A-40DE-B7C2-C0D19E9C42D3}.Debug|ARM.Build.0 = Debug|ARM
+		{22ACFD70-618A-40DE-B7C2-C0D19E9C42D3}.Release|ARM.ActiveCfg = Release|ARM
+		{22ACFD70-618A-40DE-B7C2-C0D19E9C42D3}.Release|ARM.Build.0 = Release|ARM
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,0 +1,10 @@
+SCC_TOKEN_MONITOR
+將收到的token印出來。定義它啟用。
+
+
+
+
+
+ECHO_MODEM_INPUT
+將UART送出的內容輸出到
+要啟用SCC_TOKEN_MONITOR才會作用

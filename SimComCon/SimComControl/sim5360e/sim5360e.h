@@ -3,85 +3,65 @@
  *
  * Created: 2017/6/29 下午 04:07:10
  *  Author: user
- */ 
+ */
 
 
-#ifndef SIM5360E_H_
-#define SIM5360E_H_
+#pragma once
+
+#include "generic_AT_commander.h"
 
 
-#include "sim5360e_ATC_exchange_handle.h"
-#include "Client.h"
-
-
-class SIM5360E : public SIM5360E_ATCEH, public Client
+class SIM5360E_ATCEH : public GenericATCmder
 {
-public:
-	
-	enum STATES_OF_CONNECTION
+	public:
+	enum ResponseToken
 	{
-		DISCONNECTED,
-		POWER_DOWN,
-		POWER_ON,
-		UART_OK,
-		SIM_UNLOCK,
-		NETWORK_REGISTERED,
-		NETWORK_OPEN,
-		CONNECTED
+		RT_OK,
+		RT_ERROR,
+		RT_CPIN,
+		RT_CMERROR,
+		RT_ICCID,
+		RT_CGREG,
+		RT_NETOPEN,
+		RT_CIPOPEN,
+		RT_CIPSEND,
+		RT_CIPRXGET,
+		RT_CCLK,
+		RT_START,
+		RT_CGPSINFO,
+		RT_CIPCLOSE,
+		RT_CREG,
+		RT_PDPDEACT,
+		RT_CGATT,
+		RT_CSQ,
+		RT_IPCLOSE,
+		//所有Response Token都必須定義在LAST_RESPONSE_TOKEN之前
+		LAST_RESPONSE_TOKEN
 	};
 	
-	SIM5360E(Stream *uart) : SIM5360E_ATCEH(uart)
+	SIM5360E_ATCEH()
+		: GenericATCmder(patternTable.table, patternTable.TABLE_SIZE, set_response_patterns)
 	{
-		connect_state = DISCONNECTED;
+		
 	}
 	
-	void mark_as_disconnect()
-	{
-		connect_state = DISCONNECTED;
-	}
-	
-	bool startup();
-	
-	//設定PIN，長度最大4
-	//pin_error_handler: 當解鎖PIN出錯時會呼叫此一函數，傳入NULL代表不呼叫.
-	void setPIN(const char *pin, void (*pin_error_handler)(void));
-	
-	//-----------------------
-	//硬體直接相關
-	
-	void begin();			//硬體初始化。通常在setup()中呼叫
-	void end();				//硬體停止(?)
-	bool powerState();		//回傳電源狀態，true:電源開 false:電源關
-	void pressPowerKey();	//按一次電源鈕
-	bool powerOn();			//重複嘗試開機到電源開啟，回傳值表示在本函數結束後是開機成功(true)或失敗(false)
-	bool powerOff();		//重複嘗試關機到電源關閉，回傳值表示在本函數結束後是關機成功(true)或失敗(false)
-	
-	//-----------------------
-	//Interface of 'Client'
-	
-	virtual int connect(IPAddress ip, uint16_t port);
-	virtual int connect(const char *host, uint16_t port);
-	virtual size_t write(uint8_t);
-	virtual size_t write(const uint8_t *buf, size_t size);
-	virtual int available();
-	virtual int read();
-	virtual int read(uint8_t *buf, size_t size);
-	virtual int peek();
-	virtual void flush();
-	virtual void stop();
-	virtual uint8_t connected();
-	virtual operator bool();
-	
-	//-----------------------
-	
-private:
-	int startConnection(const char *addr, IPAddress ip, uint16_t port);
-	
-	static constexpr unsigned long READ_REQ_COOLDOWN = 10000;
-	unsigned long lastReadPacketRequest;
-	
-	STATES_OF_CONNECTION connect_state;
+	static GATL::PatternTable<LAST_RESPONSE_TOKEN> patternTable;
+	static void set_response_patterns();
+#ifdef SCC_TOKEN_MONITOR
+	static void printToken(GATL::Token, GATL *);
+#endif
 };
 
 
-#endif /* SIM5360E_H_ */
+
+
+class SIM5360E : public SIM5360E_ATCEH, public ISercomIRQ
+{
+	public:
+	
+	void begin(uint32_t baudrate, SERCOM *scm, uint16_t pinRX, uint16_t pinTX, SercomRXPad padRX, SercomUartTXPad padTX);
+	void feed(char c);
+	virtual void IRQHandler();
+	
+	SERCOM_USART *sercom;
+};

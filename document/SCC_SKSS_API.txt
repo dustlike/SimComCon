@@ -1,0 +1,48 @@
+﻿「模仿BSD Socket的一組API來進行網路通訊」
+
+...原本是這麼想的，但這裡是Arduino，入境隨俗一下：
+
+「以Arduino Client介面為標準來做API」
+
+
+connect(IPAddress ip, uint16_t port)
+connect(const char *host, uint16_t port)
+連線到指定的位址與port。位址分成純IP與文字兩種格式
+兩者會指定SocketConnect使用的模式，然後呼叫私有方法startConnection()
+
+size_t write(uint8_t)
+[有待測試可行性]
+呼叫此函數相當於送出一次AT+CIPSEND=<socket_X>,1，並將資料印到UART中
+
+size_t write(uint8_t *buf, size_t length)
+呼叫此函數相當於送出一次AT+CIPSEND=<socket_X>,<length>，並將資料印到UART中
+
+print() & println()系列
+這一系列繼承自Print，不另外實作。
+
+int available()
+int read()
+int peek()
+這三個一起講，畢竟peek()就是不會刪除資料的的read()、available()就是peek() != -1
+SKSS有個接收buffer，這三支讀取函數會先去看接收buffer，
+若為空就會發AT+CIPRXGET=2讀與buffer一樣大小的資料進來。
+為了避免濫發AT+CIPRXGET，SKSS物件只會在
+	1.偵測到+CIPRXGET: 1出現，有這URC出現SKSS會設下flag，指示SKSS物件該發AT+CIPRXGET=2了。
+	2.上次AT+CIPRXGET=2的結果顯示modem那邊也還有殘餘資料，也會設下flag
+	3.距離上次available()有一定時間，那就會發AT+CIPRXGET=4確認下。若確認完後發現真有資料，就發AT+CIPRXGET=2
+	  每次發AT+CIPRXGET=4後會有冷卻時間。這條理論上不該用到，但難保沒處理到+CIPRXGET
+
+以上三個時機點向modem請求資料。
+若是連線中斷狀態，會回傳0/-1/-1。與沒資料可以讀的回傳值相同，故需要其他手段探知連線中斷。
+
+void flush()
+評估是要擺個空殼還是真的實現具實際意義的flush()
+
+void stop()
+基本上就是送出AT+CIPCLOSE=0
+
+uint8_t connected()
+這裡不會送出AT命令，而是library自行保存狀態
+
+operator bool()
+其實用不到，直接return connected()就好

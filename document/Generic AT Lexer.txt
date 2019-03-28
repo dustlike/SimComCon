@@ -1,0 +1,94 @@
+Generic AT Lexer ("GATL")
+
+GATL是一個泛用性處理AT風格回應的Lexical Analyzer，
+它提供了一個抽象運作的字詞分析核心--scan()方法
+只要定義Token以及Token-Pattern映射表，
+GATL就能分析傳入scan()的字元，並回傳對應的Token
+
+
+
+"AT風格回應"(AT-Style Response)定義
+
+首先每個AT風格回應皆以特定字串作為分隔符號。預設是CR+LF，目前也只支援CR+LF
+GATL會將Response與Token-Pattern映射表的每個項目做比對，來決定該回應是何種Token
+每個Token可設定為以下兩種比對方式：
+complete match - 必須整個回應match Pattern才判斷為該Token
+prefix match - 只要回應的開頭match Pattern就判斷為該Token。用於會攜帶額外資訊的回應
+若GATL判定Response為prefix match的Token，該Response剩下的部分就被稱為Body。Body也會交給ATECH::parseResponse()做處理
+
+
+
+scan()
+
+傳入一個字元，然後回傳目前判斷的是何種Token
+scan()只有在遇到分隔符號後才會回傳判定結果，不過有例外(見Token一節)
+其餘時刻只會回傳RT_NONE(為GATL定義的特殊Token。見Token一節)
+對於complete match而言必須要得到完整Response才能判斷，這樣設計當然是合理的
+但對於prefix match而言就會造成判定生效往後延遲。不過因為應用中往往得使用後面的內容，所以還是這樣設計
+若收到空白行(也就是兩個CR+LF之間沒有任何字元)也是回傳RT_NONE
+
+scan()實作上採取即時搜尋的策略，每餵入一個字元就會做一次O(Token-Pattern映射表大小)的線性搜尋
+responseBuffer只會收納最多GATL_RESPONSE_BUFFER_MAX個bytes，超過就直接捨棄
+其資料會維持到下次呼叫scan()為止
+
+
+
+Token
+
+技術上Token是int，故可以使用enum來定義Token
+後續類別中定義的Token都必須為非負整數
+
+GATL預先定義了以下Token：
+
+RT_NONE		表示空的Token。呼叫scan()者應當做沒發生過這次呼叫。
+RT_OTHER	表示沒有相符的Pattern。GATL會將該回應存入最多GATL_RESPONSE_BUFFER_MAX個bytes到responseBuffer
+RT_PROMPT	某些時候會需要等待「>」出現(例如SIM5360E的AT+CIPSEND)，此即為RT_PROMPT
+			「>」必須緊接在分隔符號之後才會被判定為RT_PROMPT
+			條件一成立scan()就會立即回傳RT_PROMPT，而不必再等到下個分隔符號
+.
+
+
+Pattern
+
+技術上Pattern是字串，長度沒有限制
+若需要特殊指令來存取Pattern(例如AVR的Program Space)就必須修改scan()
+目前因為是在Cortex-M0+上發展，scan()存取Pattern時並無特殊寫法
+
+GATL提供了PatternTable這個類別樣板作為方便生成Token-Pattern映射表的工具
+
+
+
+AT風格回應與Raw Data混雜
+
+scan()只能傳入由AT規則組成的字串
+但實務上常會需要傳輸非AT規則的資料，例如SIM5360E在接收TCP資料時就會直接透過UART傳來
+這時應由scan()的呼叫者自行過濾這些不該餵給GATL做分析的資料。
+
+
+
+responseBuffer與回應剖析工具
+
+responseBuffer存放的是null-terminated的字串。responseBuffer.c_str()可以直接取得該字串
+
+回應剖析工具是是一套方便使用者拆解AT回應取得參數的方法
+回應剖析有以下規則：
+
+1.回應剖析從pattern結尾後第一個非空白符號(ASCII 0x20或0x09)開始
+2.以逗號(ASCII 0x2C)作為分隔符號
+3.每次呼叫剖析函數(以getXXX為名的一系列函數)便會從當前位置開始剖析到下個分隔符號為止。
+4.若碰到雙引號(ASCII 0x22)，則到下個雙引號為止的所有字元都會被當成一個ASCII字串。
+5.剖析操作要在scan()回傳非RT_NONE的token後到下次呼叫scan()間進行
+
+bool parseInt32(int32_t *pInt32, int base=10)
+剖析出一個4byte整數，並塞到pInt32指向的整數。
+base代表進位制，範圍=[2, 16]。大於9的數字使用A~F或a~f編碼以相容16進制。
+格式的判斷非常嚴格，整段不能有不合乎進位制的字元存在。若要表達負數，則一開始就必須要是負號(ASCII 0x2B)
+回傳true代表該段為正確的整數，false便代表格式有誤不是整數，程式不會修改pInt32指向的變數。
+
+size_t parseString(char *str, size_t maxLength)
+剖析出一個字串，並複製到str中，最多複製(maxLength-1)個字元
+回傳實際複製到str的字元數。若複製長度=0，parseString()將不會對str有任何的寫入。
+
+
+
+

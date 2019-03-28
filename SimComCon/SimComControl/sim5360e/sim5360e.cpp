@@ -7,316 +7,178 @@
 
 
 #include "sim5360e.h"
-#include "trace.h"
 
 
+GATL::PatternTable<SIM5360E_ATCEH::LAST_RESPONSE_TOKEN> SIM5360E_ATCEH::patternTable;
 
-int SIM5360E::startConnection(const char *host, IPAddress ip_addr, uint16_t port)
+void SIM5360E_ATCEH::set_response_patterns()
 {
-	uint32_t start;
+	//[複製貼上用]
+	//patternTable.register_as_prefix(PSTR(""), );
+	//patternTable.register_as_complete(PSTR(""), );
 	
-	debugSerial.print(F("connect to "));
-	if (host)
-	{
-		debugSerial.print(host);
-	}
-	else
-	{
-		debugSerial.print(F("(IP)"));
-		debugSerial.print(ip_addr);
-	}
-	debugSerial.write(':');
-	debugSerial.println(port);
-	
-	
-	//check GPRS registration
-	if (execATCommand(WaitGPRSReady) != EXEC_OK) goto conn_fail;
-	
-	//check packet network is opened?
-	if (execATCommand(CheckNetwork) != EXEC_OK) goto conn_fail;
-	if (!CheckNetwork.net_opened)
-	{
-		//open network
-		if (execATCommand(OpenNetwork) != EXEC_OK) goto conn_fail;
-	}
-	
-	//check socket state
-	if (execATCommand(SocketState) != EXEC_OK) goto conn_fail;
-	if (SocketState.s0_active == 1)
-	{
-		//close s0
-		if (execATCommand(SocketClose) != EXEC_OK) goto conn_fail;
-	}
-	
-	//connect to server
-	SocketConnect.host = host;
-	SocketConnect.ip_addr = ip_addr;
-	SocketConnect.port = port;
-	if (execATCommand(SocketConnect) != EXEC_OK) goto conn_fail;
-	
-	lastReadPacketRequest = millis() - READ_REQ_COOLDOWN;
-	
-	connect_state = CONNECTED;
-	
-	return 1;
+	patternTable.register_as_complete(PSTR("OK"), RT_OK);
+	patternTable.register_as_complete(PSTR("ERROR"), RT_ERROR);
+	patternTable.register_as_prefix(PSTR("+CPIN:"), RT_CPIN);
+	patternTable.register_as_prefix(PSTR("+CME ERROR:"), RT_CMERROR);
+	patternTable.register_as_prefix(PSTR("+ICCID:"), RT_ICCID);
+	patternTable.register_as_prefix(PSTR("+CGREG:"), RT_CGREG);
+	patternTable.register_as_prefix(PSTR("+NETOPEN:"), RT_NETOPEN);
+	patternTable.register_as_prefix(PSTR("+CIPOPEN:"), RT_CIPOPEN);
+	patternTable.register_as_prefix(PSTR("+CIPSEND:"), RT_CIPSEND);
+	patternTable.register_as_prefix(PSTR("+CIPRXGET:"), RT_CIPRXGET);
+	patternTable.register_as_prefix(PSTR("+CCLK:"), RT_CCLK);
+	patternTable.register_as_complete(PSTR("START"), RT_START);
+	patternTable.register_as_prefix(PSTR("+CGPSINFO:"), RT_CGPSINFO);
+	patternTable.register_as_prefix(PSTR("+CIPCLOSE:"), RT_CIPCLOSE);
+	patternTable.register_as_prefix(PSTR("+CREG:"), RT_CREG);
+	patternTable.register_as_complete(PSTR("+CIPEVENT: NETWORK CLOSED UNEXPECTEDLY"), RT_PDPDEACT);
+	patternTable.register_as_prefix(PSTR("+CGATT:"), RT_CGATT);
+	patternTable.register_as_prefix(PSTR("+CSQ:"), RT_CSQ);
+	patternTable.register_as_prefix(PSTR("+IPCLOSE:"), RT_IPCLOSE);
 	
 	
-conn_fail:
-	
-	debugSerial.println("connection failed");
-	
-	return 0;
+	//新增完記得去printToken()增加新的token辨識ㄛ！ (?
 }
 
 
-bool SIM5360E::startup()
+
+#ifdef SCC_TOKEN_MONITOR
+
+void SIM5360E_ATCEH::printToken(GATL::Token token, GATL *lexer)
 {
-	uint32_t start;
-	
-	mark_as_disconnect();
-	
-	if(!powerOff()) return false;
-	
-	clearUart();
-	
-	if(!powerOn()) return false;
-	
-	//test UART communication alive
-	start = millis();
-	while (execATCommand(TestAlive) < 0)
+	if (token == GATL::RT_NONE)
 	{
-		if (millis() - start > 60000)
-		{
-			debugSerial.println("[TestAlive] time out");
-			return false;
-		}
+		return ;
 	}
 	
-	//disable command echo
-	if (execATCommand(NoEcho) != EXEC_OK) return false;
-	
-	//test SIM PIN
-	if (execATCommand(QueryPIN) != EXEC_OK) return false;
-	
-	//check PIN state
-	if (QueryPIN.needPIN)
+	switch(token)
 	{
-		//enter PIN
-		if (execATCommand(EnterPIN) != EXEC_OK) return false;
+		case GATL::RT_OTHER:
+		printf("{?}%s", lexer->responseBuffer);
+		break;
+		
+		case GATL::RT_PROMPT:
+		printf("{>}");
+		break;
+		
+		case RT_OK:
+		printf("{OK}");
+		break;
+		
+		case RT_ERROR:
+		printf("{ERROR}");
+		break;
+		
+		case RT_CPIN:
+		printf("{+CPIN}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CMERROR:
+		printf("{+CME ERROR}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_ICCID:
+		printf("{+ICCID}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CGREG:
+		printf("{+CGREG}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_NETOPEN:
+		printf("{+NETOPEN}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CIPOPEN:
+		printf("{+CIPOPEN}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CIPSEND:
+		printf("{+CIPSEND}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CIPRXGET:
+		printf("{+CIPRXGET}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CCLK:
+		printf("{+CCLK}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_START:
+		printf("{START}");
+		break;
+		
+		case RT_CGPSINFO:
+		printf("{+CGPSINFO}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CIPCLOSE:
+		printf("{+CIPCLOSE}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CREG:
+		printf("{+CREG}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_PDPDEACT:
+		printf("{PDP DEACT}");
+		break;
+		
+		case RT_CGATT:
+		printf("{+CGATT}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_CSQ:
+		printf("{+CSQ}%s", lexer->responseBuffer);
+		break;
+		
+		case RT_IPCLOSE:
+		printf("{+IPCLOSE}%s", lexer->responseBuffer);
+		break;
+		
+		default:
+		printf("<Unknown Token> %d", token);
+		break;
 	}
 	
-	//將解鎖PIN後的Unsolicited Response給全部清掉
-	start = millis();
-	do 
-	{
-		execATCommand();
-	} while (millis() - start < 5000);
-	
-	//AT+CGSOCKCONT=1,"IP","INTERNET"
-	if (execATCommand(DefinePdpContext) != EXEC_OK) return false;
-	
-	//AT+CSOCKSETPN=1
-	if (execATCommand(SetActiveProfile) != EXEC_OK) return false;
-	
-	//AT+CIPMODE=0
-	if (execATCommand(NonTransparentMode) != EXEC_OK) return false;
-	
-	//AT+CIPTIMEOUT=45000,60000,40000
-	if (execATCommand(SetTimeoutParameter) != EXEC_OK) return false;
-	
-	//AT+CIPHEAD=0
-	if (execATCommand(NoIPHeader) != EXEC_OK) return false;
-
-	//AT+CIPSRIP=0
-	if (execATCommand(HideRemoteHost) != EXEC_OK) return false;
-
-	//AT+CIPRXGET=1
-	if (execATCommand(SetManualReceive) != EXEC_OK) return false;
-	
-	return true;
+	printf("\r\n");
 }
 
-
-void SIM5360E::setPIN(const char *pin, void (*pin_error_handler)(void))
-{
-	if (strlen(pin) != 4)
-	{
-		debugSerial.print("PIN '");
-		debugSerial.print(pin);
-		debugSerial.println("' length is not correct");
-		return;
-	}
-	
-	memcpy(EnterPIN.pin, pin, 4);
-	EnterPIN.onPINError = pin_error_handler;
-	
-	debugSerial.print("set PIN to ");
-	debugSerial.write(EnterPIN.pin, 4);
-	debugSerial.println();
-}
-
-
-#if 0
-const char* SIM5360E::text_connec_state()
-{
-	switch(connect_state)
-	{
-		case DISCONNECTED:
-		return PSTR("disconnected");
-		
-		case POWER_DOWN:
-		return PSTR("power OFF");
-		
-		case POWER_ON:
-		return PSTR("power ON");
-		
-		case UART_OK:
-		return PSTR("UART test OK");
-		
-		case SIM_UNLOCK:
-		return PSTR("SIM unlocked");
-		
-		case NETWORK_REGISTERED:
-		return PSTR("AT+CGREG OK");
-		
-		case NETWORK_OPEN:
-		return PSTR("3G network open");
-		
-		case CONNECTED:
-		return PSTR("connected");
-	}
-}
 #endif
 
 
-//////////////////////////////////////////////////////////////////////////
 
-
-int SIM5360E::available()
+void SIM5360E::begin(uint32_t baudrate, SERCOM *scm, uint16_t pinRX, uint16_t pinTX, SercomRXPad padRX, SercomUartTXPad padTX)
 {
-	int buffer_remain = ReadTCPStream.remain();
+}
+
+
+void SIM5360E::feed(char c)
+{
+	GATL::Token token = lexer.scan(c);
 	
-	if (buffer_remain <= 0)
+	printToken(token, &lexer);
+	if(token != GATL::RT_NONE) printf("%s\r\n", lexer.responseBuffer);
+}
+
+
+void SIM5360E::IRQHandler()
+{
+	if (sercom->availableDataUART())
 	{
-		if (millis() - lastReadPacketRequest > READ_REQ_COOLDOWN)
-		{
-			//send AT+CIPRXGET=4 to check data incoming
-			execATCommand(CheckDataIncoming);
-			lastReadPacketRequest = millis();
-		}
-		else
-		{
-			//trigger global handler to "listen" data incoming
-			execATCommand();
-		}
-		
-		if (IncomingTransmission || ReadTCPStream.rest_len > 0)
-		{
-			IncomingTransmission = false;
-			
-			execATCommand(ReadTCPStream);
-			
-			lastReadPacketRequest = millis();
-		}
+		feed(sercom->readDataUART());
 	}
 	
-	return buffer_remain;
-}
-
-
-int SIM5360E::peek()
-{
-	return (available() > 0)? ReadTCPStream.readBuffer[ReadTCPStream.front] : -1;
-}
-
-
-int SIM5360E::read()
-{
-	if (available() > 0)
+	if (sercom->isDataRegisterEmptyUART())
 	{
-		return ReadTCPStream.readBuffer[ReadTCPStream.front++];
+		sercom->disableDataRegisterEmptyInterruptUART();
 	}
 	
-	return -1;
-}
-
-
-int SIM5360E::read(uint8_t *buf, size_t size)
-{
-	int byteRead = 0, data;
-	
-	while (byteRead < size)
+	if (sercom->isUARTError())
 	{
-		if ((data = read()) < 0)
-		{
-			break;
-		}
-		
-		buf[byteRead++] = data;
+		sercom->acknowledgeUARTError();
+		sercom->clearStatusUART();
 	}
-	
-	return byteRead;
-}
-
-
-int SIM5360E::connect(IPAddress ip, uint16_t port)
-{
-	return startConnection(nullptr, ip, port);
-}
-
-
-int SIM5360E::connect(const char *host, uint16_t port)
-{
-	return startConnection(host, IPAddress(), port);
-}
-
-
-size_t SIM5360E::write(const uint8_t *data, size_t dlen)
-{
-	IPSendFixedLength.source = data;
-	IPSendFixedLength.length = dlen;
-	
-	return (execATCommand(IPSendFixedLength) >= 0)? dlen : 0;
-}
-
-
-size_t SIM5360E::write(uint8_t data)
-{
-	IPSendFixedLength.source = &data;
-	IPSendFixedLength.length = 1;
-	return (execATCommand(IPSendFixedLength) >= 0)? 1 : 0;
-}
-
-
-void SIM5360E::flush()
-{
-	uart->flush();
-}
-
-
-void SIM5360E::stop()
-{
-	if (execATCommand(SocketClose) >= 0)
-	{
-		if (SocketClose.errno != 0)
-		{
-			debugSerial.print("!!!!!! SIM5360E::stop() errno = ");
-			debugSerial.println(SocketClose.errno);
-		}
-		
-		//目前暫定忽略任何非零的errno，只要有回應+CIPCLOSE就算成功stop()
-		mark_as_disconnect();
-	}
-}
-
-
-uint8_t SIM5360E::connected()
-{
-	return connect_state == CONNECTED;
-}
-
-
-SIM5360E::operator bool()
-{
-	return connected();
 }

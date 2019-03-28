@@ -1,0 +1,37 @@
+對Modem進行硬體操作或下達AT指令的API
+
+[blocking]
+void pressPowerButton()
+相當於這樣：
+digitalWrite(MODEM_PWRKEY, LOW);
+digitalWrite(MODEM_PWRKEY, HIGH);
+delay(一段時間 通常是1000ms);
+digitalWrite(MODEM_PWRKEY, LOW);
+
+inline bool powerState()
+回傳modem的電源指示燈狀態，true=ON, false=OFF
+現在改採用VDD_EXT，開機就馬上輸出2.85v讚
+原本打算直接廢掉，但考慮到電位解析抽象化的必要性還是保留下來了(?)
+
+[blocking]
+bool powerOn(int retry = 5)
+重複powerButton()直到開機，若呼叫前powerState()==true則不會呼叫powerButton()。
+retry: 會重試幾次
+return: true=成功, false=超過retry限制(意味著失敗)
+
+[blocking]
+bool powerOff(int retry = 5)
+重複powerButton()直到關機，若呼叫前powerState()==false則不會呼叫powerButton()。
+retry: 會重試幾次
+return: true=成功, false=超過retry限制(意味著失敗)
+
+int execATCommand(ATCExchangeHandler& handler)
+繼承自GenericATCmder的東西。只要給定寫好的ATCExchangeHandler就會從送指令到收回應並判別結果一應俱全
+return:
+EXEC_OK：就是成功啦(?)
+EXEC_ERROR：就是有錯啦(?)，碰到這個通常建議重啟modem
+EXEC_TRYOUT：嘗試到超過時間或超過次數限制
+剩下的結果看handler的property
+
+
+

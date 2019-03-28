@@ -1,11 +1,39 @@
 ﻿#include "Arduino.h"
-#include "sim5360e/sim5360e.h"
-#include "PubSubClient.h"
-#include "trace.h"
-#include "CMTCS.h"
-#include "Keypad.h"
 
 
+HardwareSerial debugSerial;
+
+
+extern "C"  int __attribute__((weak))
+_write (int file, char * ptr, int len)
+{
+	debugSerial.write(ptr, len);
+	return len;
+}
+
+
+
+void setup()
+{
+	debugSerial.configIO(&sercom1, PinTuple(PIN_PA17, PIO_SERCOM), PinTuple(PIN_PA16, PIO_SERCOM));
+	debugSerial.begin(115200, SERCOM_RX_PAD_1, UART_TX_PAD_0);
+	printf("SIM7020E Test\n");
+}
+
+
+void loop()
+{
+	printf("tick\n");
+	delay(2000);
+	printf("tock\n");
+	delay(2000);
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+
+
+#if 0
 #define MODEM_UART Serial2
 
 
@@ -215,4 +243,5 @@ void loop()
 	#endif
 }
 
+#endif
 #endif

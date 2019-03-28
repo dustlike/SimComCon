@@ -7,11 +7,10 @@
 
 
 #include "generic_AT_lexer.h"
-#include "trace.h"
 
 
 
-GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
+GATL::Token GATL::scan(char ch)
 {
 	if (resetLine)
 	{
@@ -23,45 +22,27 @@ GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
 		prevChar = 0;
 	}
 	
-	if (_ch < 0 || _ch > 255)
-	{
-		return RT_NONE;
-	}
-	
-	unsigned char ch = _ch;
-	
-	if (inFLRmode)
-	{
-		responseBuffer[recv_count++] = ch;
-		
-		//收到足夠長的資料了，結束FLR回歸一般模式.
-		if (recv_count >= fixed_recv_length)
-		{
-			inFLRmode = false;
-			resetLine = true;
-			return RT_FLR_RESPONSE;
-		}
-	}
-	//special process for CR/LF
-	else if (ch == '\n' || ch == '\r')
+	//special process for CR+LF
+	if (ch == '\n')
 	{
 		//meet CR+LF, the end of line
-		if(prevChar == '\r' && ch == '\n')
+		if(prevChar == '\r')
 		{
 			resetLine = true;
 			
 			//add NUL character, make it easy to do string operation
-			responseBuffer[recv_count] = '\0';
+			if (recv_count > GATL_RESPONSE_BUFFER_MAX)
+				responseBuffer[GATL_RESPONSE_BUFFER_MAX] = '\0';
+			else
+				responseBuffer[recv_count] = '\0';
 			
 			//only one candidate left, and hit the end
 			//or already "matched prefix"
-			if (matched_prefix || matchBegin + 1 == matchEnd && '\0' == pgm_read_byte(&patternTable[matchBegin].text[recv_count]))
+			if ( (matchBegin + 1 == matchEnd && '\0' == patternTable[matchBegin].text[recv_count])
+				|| matched_prefix )
 			{
-				//將parse_pos定到pattern結尾
-				parse_pos = strlen_P(patternTable[matchBegin].text);
-				
-				//將parse_pos定到第一個非空白(0x20)字元
-				for (; parse_pos < recv_count; parse_pos++)
+				//將parse_pos定到第一個非空白字元
+				for (parse_pos = 1; parse_pos < recv_count; parse_pos++)
 				{
 					if (responseBuffer[parse_pos] != ' ' && responseBuffer[parse_pos] != '\t')
 					{
@@ -77,6 +58,10 @@ GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
 				return (recv_count > 0)? RT_OTHER : RT_NONE;
 			}
 		}
+	}
+	else if(ch == '\r')
+	{
+		//just ignore CR
 	}
 	//設計給諸如AT+CIPSEND等命令，用來等待prompt符號('>')
 	else if (recv_count == 0 && ch == '>')
@@ -96,7 +81,7 @@ GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
 			
 			for (; k < matchEnd; k++)
 			{
-				if (ch == pgm_read_byte(&patternTable[k].text[recv_count]))
+				if (ch == patternTable[k].text[recv_count])
 				{
 					break;
 				}
@@ -105,7 +90,7 @@ GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
 			
 			for (; k < matchEnd; k++)
 			{
-				if (ch != pgm_read_byte(&patternTable[k].text[recv_count]))
+				if (ch != patternTable[k].text[recv_count])
 				{
 					break;
 				}
@@ -118,18 +103,21 @@ GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
 				//if the candidate has 'prefixMatch'
 				if(patternTable[matchBegin].prefixMatch &&
 				//and the candidate is fully matched
-					'\0' == pgm_read_byte(&patternTable[matchBegin].text[recv_count + 1]))
+					'\0' == patternTable[matchBegin].text[recv_count + 1] )
 				{
 					matched_prefix = true;
+					recv_count = 0;
 				}
 			}
 		}
 		
 		// put data into buffer. will not put in if buffer overflow
-		if (recv_count < GATC_RECV_BUFFER_MAX)
+		if (recv_count < GATL_RESPONSE_BUFFER_MAX)
 		{
-			responseBuffer[recv_count++] = ch;
+			responseBuffer[recv_count] = ch;
 		}
+		
+		recv_count++;
 	}
 	
 	prevChar = ch;
@@ -138,22 +126,7 @@ GenericATLexer::GATLToken GenericATLexer::feed(int _ch)
 }
 
 
-static int strcmp_pgm2pgm(const char *s1, const char *s2)
-{
-	char c1 = 0, c2 = 0;
-	
-	do
-	{
-		c1 = pgm_read_byte(s1++);
-		c2 = pgm_read_byte(s2++);
-		
-	} while (c1 != 0 && c1 == c2);
-	
-	return c1 - c2;
-}
-
-
-size_t GenericATLexer::initPatternTable(ATResponsePattern *patternTable, size_t szTable, void (*patternRegister)())
+size_t GATL::initPatternTable(ATResponsePattern *patternTable, size_t szTable, void (*patternRegister)())
 {
 	memset(patternTable, 0, szTable);
 	
@@ -166,8 +139,8 @@ size_t GenericATLexer::initPatternTable(ATResponsePattern *patternTable, size_t 
 		
 		for (size_t j = i + 1; j < szTable; j++)
 		{
-			if (patternTable[j].text != NULL && (patternTable[min].text == NULL
-			|| strcmp_pgm2pgm(patternTable[j].text, patternTable[min].text) < 0))
+			if (patternTable[j].text != NULL &&
+			(patternTable[min].text == NULL || strcmp(patternTable[j].text, patternTable[min].text) < 0))
 			{
 				min = j;
 			}
@@ -194,19 +167,7 @@ size_t GenericATLexer::initPatternTable(ATResponsePattern *patternTable, size_t 
 }
 
 
-void GenericATLexer::startFLRmode(size_t length)
-{
-	if (length <= 0 || length > GATC_RECV_BUFFER_MAX)
-	{
-		return;
-	}
-	
-	fixed_recv_length = length;
-	inFLRmode = true;
-}
-
-
-size_t GenericATLexer::enclose_field()
+size_t GATL::enclose_field()
 {
 	bool inQuotation = false;
 	size_t end_pos = recv_count;	//都找不到逗號的話，最後一定會結束在recv_count
@@ -238,7 +199,7 @@ static int hex_to_int(char c)
 }
 
 
-bool GenericATLexer::parseInt32(int32_t *pInt32, int base /*= 10*/)
+bool GATL::parseInt32(int32_t *pInt32, int base /*= 10*/)
 {
 	//search position has hit the end.
 	if(parse_pos >= recv_count)
@@ -291,7 +252,7 @@ bool GenericATLexer::parseInt32(int32_t *pInt32, int base /*= 10*/)
 }
 
 
-size_t GenericATLexer::parseString(char *dst, size_t maxLength)
+size_t GATL::parseString(char *dst, size_t maxLength)
 {
 	//search position has hit the end.
 	if(parse_pos >= recv_count) return 0;
@@ -324,33 +285,18 @@ size_t GenericATLexer::parseString(char *dst, size_t maxLength)
 
 #ifdef SCC_TOKEN_MONITOR
 
-void GenericATLexer::listAllPatterns()
+void GATL::listAllPatterns()
 {
-	monitorSerial.println(F("**** SCC Pattern Table ****"));
+	const char * quote = "\"";
+	
+	printf("**** SCC Pattern Table ****\r\n");
 	
 	for (size_t i = 0; i < patternTableSize; i++)
 	{
-		monitorSerial.write(patternTable[i].prefixMatch? '^' : ' ');
-		
-		if (patternTable[i].text)
-		{
-			monitorSerial.write('"');
-			monitorSerial.print((__FlashStringHelper *) patternTable[i].text);
-			monitorSerial.write('"');
-		}
-		else
-		{
-			monitorSerial.print(F("(null)"));
-		}
-		
-		monitorSerial.print(F(" = "));
-		monitorSerial.println(patternTable[i].token);
+		printf("%c%s = %d\r\n", (patternTable[i].prefixMatch)? '^' : ' ', patternTable[i].text, patternTable[i].token);
 	}
 	
-	monitorSerial.print(F("****** Total "));
-	monitorSerial.print(patternTableSize);
-	monitorSerial.println(F(" patterns"));
-	monitorSerial.println();
+	printf("****** Total %u patterns\r\n", patternTableSize);
 }
 
 #endif

@@ -1,0 +1,82 @@
+﻿Generic AT Commander ("GATC")
+
+GATC是一種抽象化處理modem回應的Syntactic analyzer。包含指令的自動發送也是由GATC控制。
+以L&Y體系來看，GATC扮演著類似yacc的工作。
+
+GATC下轄抽象類別"ATCExchangeHandler"，存放某個AT Command的命令發送與回應處理程序。
+ATCExchangeHandler具有以下兩個介面：
+	sendCommand() 呼叫它就會對modem送出指令。不過sendCommand()裡面其實可以什麼也不做，通常用於等待Unsolicited Result Code
+	parseResponse()傳入GATL Token就會進行語法分析
+由於每個指令該如何發送、回應該如何處理都是依存於modem的型號，故皆是實作在SimComCon類別之中。
+
+GATC的核心是execATCommand(ATCExchangeHandler& handler)，此方法會執行下列事項：
+1.執行GATL::feed()，字元讀取函數則是在建構GATC的時候指定給它
+2.呼叫handler.sendCommand()發送指令給modem
+3.呼叫handler.parseResponse()做syntactic analysis
+4.超時或重試太多次時中止AT comamnd exchange，預設是10秒與重試3次
+
+execATCommand()在呼叫handler.parseResponse()做syntactic analysis時，
+會先呼叫globalATCEHandler.parseResponse()來捕捉某些全域性的Unsolicited Result Code
+若globalATCEHandler為NULL則不會有此一過程。
+
+
+讓parseResponse()控制execATCommand()的流程
+
+DONE
+ABORT
+KEEPON
+RESEND
+UNTRAPPED
+
+
+GATC防洪機制
+
+為了防止重試轟炸，GATC核心在parseResponse()回傳RETRY後會halt個500ms。
+
+
+////////////////////////////////////////////////////////////////
+
+virtual void ATCExchangeHandler::initialize(uint32_t& timeLimit, int& maxTry)
+
+初始化handler。一開始執行execATCommand()時會呼叫這方法
+在這方法中可以改變exchange執行時間上限與最大重試次數
+注意：globalATCEHandler的initialize()不會有人去呼叫它
+預設是什麼也不做
+
+
+virtual void ATCExchangeHandler::sendCommand()
+
+在此方法中將AT命令輸出至modem。
+預設是什麼也不做
+
+
+//////////////////
+
+virtual void ATCExchangeHandler::parseResponse(GATLToken token, GenericATLexer *lexer, GATC_CTRL& control, SimpleTimer& retryTimer)
+
+所有ATCExchangeHandler衍生類必須要實作parseResponse()，沒有預設解。
+在此方法中對於Generic AT Lexer辨識出的token做出動作。
+
+lexer是與GATC綁定的GATL。由於SimComCon會繼承GenericATLexer類別，故透過dynamic_cast其實是能夠將lexer轉成SimCom Controller，進而去使用它的公開成員。
+
+control便是前面提到的「如何讓parseResponse()控制execATCommand()的流程」
+
+retryTimer是重發AT指令的計時器。想要自訂重發間隔，請在最後加入以下片段：
+
+	default:
+		if(retryTimer.timeout(1000))
+		{
+			control = RESEND;
+		}
+		else
+		{
+			control = KEEPON;
+		}
+	}
+
+總之就是要重發時control設為RESEND，其他時候確保control都是KEEPON
+
+
+
+
+
